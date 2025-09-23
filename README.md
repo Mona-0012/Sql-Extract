@@ -1,48 +1,53 @@
 SET search_path to {schema};
 
-CREATE TABLE IF NOT EXISTS rule_detect_external_table_inside_joins (
-rule_id BIGINT,
-org_id TEXT,
-version_id BIGINT,
-project_name TEXT,
-log_id TEXT,
-user_name TEXT,
-query TEXT,
-schema_name TEXT,
-table_name TEXT,
-entity_type TEXT
+
+CREATE TABLE IF NOT EXISTS rule_detect_suboptimal_join_order (
+    rule_id BIGINT,
+    org_id TEXT,
+    version_id BIGINT,
+    project_name TEXT,
+    log_id TEXT,
+    user_name TEXT,
+    query TEXT,
+    left_table_database TEXT,
+    left_table_schema TEXT,
+    left_table_name TEXT,
+    left_table_size_mb NUMERIC(38,2),
+    right_table_database TEXT,
+    right_table_schema TEXT,
+    right_table_name TEXT,
+    right_table_size_mb NUMERIC(38,2)
+    
 );
+
 
 WITH filtered_base_query_info AS (
     SELECT *
     FROM base_query_info b
     WHERE b.relationship_type = 'JOINS' AND b.version_id={version}
 )
-INSERT INTO rule_detect_external_table_inside_joins 
+
+INSERT INTO rule_detect_suboptimal_join_order
 SELECT DISTINCT
-    14 AS rule_id,
+    15 AS rule_id,
     'hsbc' AS org_id,
     b.version_id,
+    b.target_database AS project_name,   
     b.log_id,
     b.user_name,
     b.query,
-    v.database_name AS project_name,
-    v.schema_name,
-    v.table_name,
-    v.entity_type
-FROM filtered_base_query_info b
-CROSS JOIN LATERAL (
-    SELECT b.source_database     AS database_name,
-           b.source_schema       AS schema_name,
-           b.source_entity_name  AS table_name,
-           b.source_entity_type  AS entity_type
-    WHERE b.source_entity_type = 'EXTERNAL_TABLE'
+    b.source_database AS left_table_database,
+    b.source_schema AS left_table_schema,                      
+    b.source_entity_name AS left_table_name,  
+    tm.size_mb AS left_table_size_mb,
+    b.target_database AS right_table_database,
+    b.target_schema AS right_table_schema,                       
+    b.target_entity_name AS right_table_name,  
+    b.table_size AS right_table_size_mb
     
-    UNION ALL
-
-    SELECT b.target_database     AS database_name,
-           b.target_schema       AS schema_name,
-           b.target_entity_name  AS table_name,
-           b.target_entity_type  AS entity_type
-    WHERE b.target_entity_type = 'EXTERNAL_TABLE'
-) v;
+FROM filtered_base_query_info b
+INNER JOIN table_metadata tm
+    ON tm.database = b.source_database
+   AND tm.schema = b.source_schema
+   AND tm.table_name = b.source_entity_name
+   AND tm.size_mb > b.table_size;
