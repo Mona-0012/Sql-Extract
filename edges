@@ -1,0 +1,113 @@
+{
+  "graph_name": "Graph_new",
+  "edges": [
+    {
+      "edge_name": "HAS_USED",
+      "from": "person",
+      "to": "device",
+      "directed": true,
+      "attributes": {
+        "first": "STRING",
+        "last": "STRING",
+        "devicetype": "STRING"
+      }
+    },
+    {
+      "edge_name": "reverse_HAS_USED",
+      "from": "device",
+      "to": "person",
+      "directed": true,
+      "attributes": {
+        "first": "STRING",
+        "last": "STRING",
+        "devicetype": "STRING"
+      }
+    },
+    {
+      "edge_name": "HAS_IP",
+      "from": "person",
+      "to": "ipaddress",
+      "directed": true,
+      "attributes": {
+        "first": "STRING",
+        "last": "STRING"
+      }
+    },
+    {
+      "edge_name": "reverse_HAS_IP",
+      "from": "ipaddress",
+      "to": "person",
+      "directed": true,
+      "attributes": {
+        "first": "STRING",
+        "last": "STRING"
+      }
+    },
+    {
+      "edge_name": "HAS_PAID",
+      "from": "accountnumber",
+      "to": "accountnumber",
+      "directed": true,
+      "attributes": {
+        "totalvalue": "FLOAT",
+        "totalvolume": "INT",
+        "first_tran": "STRING",
+        "last_tran": "STRING"
+      }
+    },
+    {
+      "edge_name": "reverse_HAS_PAID",
+      "from": "accountnumber",
+      "to": "accountnumber",
+      "directed": true,
+      "attributes": {
+        "totalvalue": "FLOAT",
+        "totalvolume": "INT",
+        "first_tran": "STRING",
+        "last_tran": "STRING"
+      }
+    },
+    {
+      "edge_name": "HAS_ACCOUNT",
+      "from": "person",
+      "to": "accountnumber",
+      "directed": true,
+      "attributes": {}
+    },
+    {
+      "edge_name": "reverse_HAS_ACCOUNT",
+      "from": "accountnumber",
+      "to": "person",
+      "directed": true,
+      "attributes": {}
+    },
+    {
+      "edge_name": "HAS_PHONE",
+      "from": "person",
+      "to": "phone",
+      "directed": true,
+      "attributes": {}
+    },
+    {
+      "edge_name": "reverse_HAS_PHONE",
+      "from": "phone",
+      "to": "person",
+      "directed": true,
+      "attributes": {}
+    },
+    {
+      "edge_name": "HAS_EMAIL",
+      "from": "person",
+      "to": "email",
+      "directed": true,
+      "attributes": {}
+    },
+    {
+      "edge_name": "reverse_HAS_EMAIL",
+      "from": "email",
+      "to": "person",
+      "directed": true,
+      "attributes": {}
+    }
+  ]
+}
