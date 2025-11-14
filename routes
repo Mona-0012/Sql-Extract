@@ -1,0 +1,264 @@
+# newly added 
+# Block dangerous GSQL (DDL / write ops)
+FORBIDDEN_GSQL_KEYWORDS = [
+    "CREATE GRAPH", "DROP GRAPH", "CREATE VERTEX", "DROP VERTEX",
+    "CREATE EDGE", "DROP EDGE",
+    "CREATE QUERY", "INSTALL QUERY", "RUN QUERY",
+    "INSERT", "UPDATE", "DELETE", "UPSERT",
+    "RUN LOADING JOB", "CREATE LOADING JOB",
+    "GRANT", "REVOKE", "ALTER"
+]
+def _contains_bad_gsql(txt: str) -> bool:
+    if not isinstance(txt, str):
+        return False
+    up = txt.upper()
+    return any(k in up for k in FORBIDDEN_GSQL_KEYWORDS)
+
+class EdgeSpec(BaseModel):
+    # here it shows the relationship from 'from' node to 'to' node, and from_ is used as 'from' as a variable cant be used
+    from_: str = Field(alias="from")
+    type: str
+    to: str
+
+class GenerateGSQLRequest(BaseModel):
+    market: str
+    nlp: str
+   
+
+@router.post("/generate_gsql")
+def generate_gsql(req: GenerateGSQLRequest, user: dict = Depends(verify_token)):
+    
+    username = user.get("username", "unknown")
+    
+    logger.info("Entered generate_gsql endpoint")
+    logger.info("GSQL_GENERATION_START - User: %s, Market: %s", username, req.market)
+    
+
+    try:
+        #  INPUT GUARDRAILS HERE:
+        if invalid_utterance_in_prompt(req.nlp):
+            return JSONResponse(
+                status_code=400,
+                content={"status":"error","message":"Please provide a meaningful analytical task."}
+            )
+        if validate_english(req.nlp):
+            return JSONResponse(
+                status_code=400,
+                content={"status":"error","message":"Task must be valid English and non-malicious."}
+            )
+
+        # market load config file
+        cfg = load_config(req.market)
+        
+        # ========== LOAD GRAPH SCHEMA CONTEXT (NEW CODE STARTS HERE) ==========
+        # Define paths to schema files based on market
+        vertices_path = f"config/vertices.json"
+        edges_path = f"config/edges.json"
+        
+        logger.info("Loading graph schema from: vertices=%s, edges=%s", vertices_path, edges_path)
+        
+        # Load vertex schema , Dictionary to store raw schema data
+        vertex_schemas = {}
+        graph_name_from_files = None 
+
+        if os.path.exists(vertices_path):
+            try:
+                with open(vertices_path, 'r', encoding='utf-8') as f:
+                    vertices_data = json.load(f)
+
+                    if isinstance(vertices_data, dict):
+                        # capture graph_name from vertices.json if present
+                        if "graph_name" in vertices_data:
+                            graph_name_from_files = vertices_data.get("graph_name")
+                            logger.info("Graph name found in vertices.json: %s", graph_name_from_files)
+                        vertices_data = vertices_data.get("vertices", [])
+                    else:
+                        # old format: the file is already a list of vertex objects
+                        vertices_data = vertices_data
+
+                   
+                    for vertex in vertices_data:
+                        vertex_name = vertex.get('vertex_name')
+                        vertex_schemas[vertex_name] = {
+                            'attributes': vertex.get('attributes', {}),
+                            'primary_id': vertex.get('primary_id', {})
+                        }
+                logger.info("Loaded %d vertex schemas", len(vertex_schemas))
+            except Exception as e:
+                logger.warning("Could not load vertex schema: %s", str(e))
+        else:
+            logger.warning("Vertices file not found: %s", vertices_path)
+        
+        # Load edge schema
+        edge_schemas = {}
+        if os.path.exists(edges_path):
+            try:
+                with open(edges_path, 'r', encoding='utf-8') as f:
+                    edges_data = json.load(f)
+
+                    # new format: top-level dict with "graph_name" and "edges"
+                    if isinstance(edges_data, dict):
+                        # 🔵 NEW: if graph_name not already from vertices.json, take from edges.json
+                        if "graph_name" in edges_data and not graph_name_from_files:
+                            graph_name_from_files = edges_data.get("graph_name")
+                            logger.info("Graph name found in edges.json: %s", graph_name_from_files)
+                        edges_data = edges_data.get("edges", [])
+                    else:
+                        # old format: file is a list of edge objects
+                        edges_data = edges_data
+
+
+
+
+                    for edge in edges_data:
+                        edge_name = edge.get('edge_name')
+                        edge_schemas[edge_name] = {
+                            'from': edge.get('from'),
+                            'to': edge.get('to'),
+                            'directed': edge.get('directed', True),
+                            'attributes': edge.get('attributes', {})
+                        }
+                logger.info("Loaded %d edge schemas", len(edge_schemas))
+            except Exception as e:
+                logger.warning("Could not load edge schema: %s", str(e))
+        else:
+            logger.warning("Edges file not found: %s", edges_path)
+
+
+        #automatic construction of nodes with context from vertex_schemas
+        #Convert the dictionary into a list of objects formatted for the prompt
+        nodes_with_context = []
+        # If vertex_schemas is empty, nodes_with_context remains empty (handled later)
+        for node_name, v_schema in vertex_schemas.items():
+            node_info = {
+                "name": node_name,
+                "primary_id": v_schema.get("primary_id", {}),
+                "attributes": v_schema.get("attributes", {})
+            }
+            nodes_with_context.append(node_info)
+            logger.debug("Enriched node '%s' with %d attributes", node_name, len(node_info.get('attributes', {})))
+
+        
+        #automatic construction of edges with context from edge_schemas
+        edges_with_context = []
+        for edge_name, e_schema in edge_schemas.items():
+            edge_info = {
+                "from": e_schema.get("from"),
+                "type": edge_name,
+                "to": e_schema.get("to"),
+                "directed": e_schema.get("directed", True),
+                "attributes": e_schema.get("attributes", {})
+            }
+            edges_with_context.append(edge_info)
+            logger.debug("Enriched edge '%s' with %d attributes", edge_name, len(edge_info.get('attributes', {})))
+
+        logger.info("Schema context enriched - %d nodes, %d edges",
+            len(nodes_with_context), len(edges_with_context))
+
+        schema_text = json.dumps({
+                    "vertices": vertex_schemas,
+                    "edges": edge_schemas
+                }, indent=2)
+        logger.debug("Full schema context:\n%s", schema_text)    
+                
+        #Relationship being defined here
+        relations_text = "\n".join(f"- {e['from']} -({e['type']})-> {e['to']}" for e in edges_with_context) if edges_with_context else "- /* none provided */"
+
+        # ===== ADD THIS (just after schema_text is created) =====
+        numeric_types = {"INT","UINT","FLOAT","DOUBLE","LONG","BIGINT", "DECIMAL"}
+
+        # parsing list,dictionary
+        def _attr_items_maybe_list_or_dict(attrs):
+            # vertices.json uses a LIST of {"name","type"}; edges.json uses a DICT of name->type
+            if isinstance(attrs, dict):
+                return attrs.items()
+            if isinstance(attrs, list):
+                # yield (name, type)
+                return ((a.get("name"), a.get("type")) for a in attrs)
+            return ()
+
+        allowed_lines = []
+
+        # for edges to findin numeric attributes
+        for ename, einfo in edge_schemas.items():
+            attrs = einfo.get("attributes", {}) or {}
+            items = _attr_items_maybe_list_or_dict(attrs)  # Converts attributes to a list of (name, type) pairs
+            nums = [ #filters out numeric attributes
+                k for (k, t) in items
+                if t and str(t).upper().split("<", 1)[0] in numeric_types
+            ]
+            if nums:
+                allowed_lines.append(f"- Edge {ename}: {', '.join(nums)}")
+
+       #It acts like a filter + guardrail. both the blocks . Without a numeric context, the LLM doesn’t know, which of these are numeric attributes or which belong to vertices vs edges.
+       #You are only allowed to use these attributes when you do math, sums, or averages
+        # for vertices to findin numeric attributes
+        for vname, vinfo in vertex_schemas.items():
+            attrs = vinfo.get("attributes", {}) or {}
+            items = _attr_items_maybe_list_or_dict(attrs)
+            nums = [
+                k for (k, t) in items
+                if t and str(t).upper().split("<", 1)[0] in numeric_types
+            ]
+            if nums:
+                allowed_lines.append(f"- Vertex {vname}: {', '.join(nums)}")
+
+        allowed_numeric_text = "\n".join(allowed_lines) or "- (none)"
+        # ========================================================
+
+
+        # ========== BUILD PROMPT WITH ENRICHED CONTEXT ==========
+        #Graph_name MUST come from JSON context (vertices.json or edges.json)
+        if graph_name_from_files:
+            graph_name = graph_name_from_files
+            logger.info("Using graph_name from JSON context: %s", graph_name)
+        else:
+            #  Fail fast — require graph_name in JSON context
+            logger.error("Graph name not found in vertices.json or edges.json. Aborting request.")
+            return JSONResponse(
+                status_code=500,
+                content={
+                    "status": "error",
+                    "message": "graph_name must be present in vertices.json or edges.json. Please add it to your JSON context."
+                }
+            )
+        logger.info("Using graph_name: %s", graph_name)
+
+
+        prompt = get_prompt_for_generating_gsql(
+            graph_name=graph_name,
+            nodes=nodes_with_context,  # Changed: now includes attributes
+            edges=edges_with_context,  # Changed: now includes attributes
+            task=req.nlp,
+            schema_text=schema_text,
+            allowed_numeric_text=allowed_numeric_text ,
+            relations_text=relations_text 
+        )
+        logger.info("PROMPT SENT TO LLM (length: %d chars)", len(prompt))
+        logger.debug("Full prompt:\n%s", prompt)
+        
+        # ========== CALL LLM ==========
+        messages = [{"role": "user", "content": prompt}]
+        logger.info("Calling LLM with enriched schema context")
+        gsql_raw = LLMConnector(messages, config=cfg).get_llm_response()
+        logger.info("Received LLM response: %s", gsql_raw[:100]) #Only log the first 100 characters
+
+        # ========== POST-GENERATION SAFETY CHECKS ==========
+        if _contains_bad_gsql(gsql_raw) or check_for_modification_in_query(gsql_raw):
+            logger.error("GSQL_BLOCKED - Modification/DDL detected - User: %s", username)
+            return JSONResponse(
+                status_code=400,
+                content={"status":"error","message":"Generated GSQL contained modification/DDL statements. Blocked."}
+            )
+
+        # ========== CLEAN AND RETURN ==========
+        gsql_query = gsql_raw.replace("Final GSQL:-", "", 1).strip()
+        logger.info("GSQL_GENERATION_SUCCESS - User: %s, Query length: %d", username, len(gsql_query))
+        return JSONResponse(
+            status_code=200,
+            content={"status": "success", "gsql_query": gsql_query}
+        )
+
+    except Exception as e:
+        logger.exception("GSQL_GENERATION_ERROR - User: %s, Error: %s", username, str(e))
+        raise HTTPException(status_code=500, detail=f"Unexpected error: {str(e)}")
