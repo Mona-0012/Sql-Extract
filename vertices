@@ -1,0 +1,115 @@
+{
+  "graph_name": "Graph_new",
+  "vertices": [
+    {
+      "vertex_name": "person",
+      "primary_id": "customer_id",
+      "attributes": [
+        { "name": "mule", "type": "BOOL" },
+        { "name": "fraud", "type": "BOOL" },
+        { "name": "victim", "type": "BOOL" },
+        { "name": "bankcategory", "type": "STRING" },
+        { "name": "bad_bene_count", "type": "INT" },
+        { "name": "turnover_ratio", "type": "STRING" },
+        { "name": "tmx_risk_behaviour", "type": "STRING" },
+        { "name": "biocatch_risky_behaviour", "type": "STRING" },
+        { "name": "payment_changes", "type": "STRING" },
+        { "name": "first_account_activity_dt", "type": "STRING" },
+        { "name": "last_account_activity_dt", "type": "STRING" },
+        { "name": "credit_card_limit", "type": "STRING" },
+        { "name": "credit_card_last_used", "type": "STRING" },
+        { "name": "debit_card_last_used", "type": "STRING" },
+        { "name": "payments_velocity_changes", "type": "STRING" },
+        { "name": "new_beneficiaries", "type": "STRING" },
+        { "name": "payments_daily_avg", "type": "STRING" },
+        { "name": "recent_high_tmx_dt", "type": "STRING" },
+        { "name": "recent_high_bio_dt", "type": "STRING" },
+        { "name": "bad_device_count", "type": "INT" },
+        { "name": "rapid_fund_movements", "type": "STRING" },
+        { "name": "pagerank", "type": "FLOAT" },
+        { "name": "age", "type": "INT" },
+        { "name": "acct_open_dt", "type": "STRING" },
+        { "name": "small_amount_lt_10", "type": "STRING" },
+        { "name": "csem", "type": "BOOL" }
+      ]
+    },
+    {
+      "vertex_name": "device",
+      "primary_id": "device_id",
+      "attributes": [
+        { "name": "first", "type": "STRING" },
+        { "name": "last", "type": "STRING" },
+        { "name": "devicetype", "type": "STRING" },
+        { "name": "total", "type": "INT" },
+        { "name": "mule_ratio", "type": "INT" },
+        { "name": "mule", "type": "INT" },
+        { "name": "overall_bad_ratio", "type": "INT" },
+        { "name": "overall_bad_volume", "type": "INT" }
+      ]
+    },
+    {
+      "vertex_name": "ipaddress",
+      "primary_id": "ip_address",
+      "attributes": [
+        { "name": "total", "type": "INT" },
+        { "name": "first_seen", "type": "STRING" },
+        { "name": "last_seen", "type": "STRING" },
+        { "name": "mule_ratio", "type": "INT" },
+        { "name": "mule", "type": "INT" },
+        { "name": "overall_bad_ratio", "type": "INT" },
+        { "name": "overall_bad_volume", "type": "INT" }
+      ]
+    },
+    {
+      "vertex_name": "accountnumber",
+      "primary_id": "account_number",
+      "attributes": [
+        { "name": "mule", "type": "BOOL" },
+        { "name": "fraud", "type": "BOOL" },
+        { "name": "victim", "type": "BOOL" },
+        { "name": "bankname", "type": "STRING" },
+        { "name": "bankcategory", "type": "STRING" },
+        { "name": "account_weight", "type": "INT" },
+        { "name": "bank_type", "type": "STRING" },
+        { "name": "bene_first_seen", "type": "STRING" },
+        { "name": "pagerank", "type": "FLOAT" },
+        { "name": "embedding", "type": "LIST<DOUBLE>" },
+        { "name": "betweenness1", "type": "FLOAT" },
+        { "name": "article_rank", "type": "FLOAT" },
+        { "name": "TOTAL_SENT_VALUE", "type": "INT" },
+        { "name": "TOTAL_RECEIVED_VALUE", "type": "FLOAT" },
+        { "name": "TOTAL_SENT_VOLUME", "type": "FLOAT" },
+        { "name": "TOTAL_RECEIVED_VOLUME", "type": "FLOAT" },
+        { "name": "BENE_SENT_VOLUME", "type": "FLOAT" },
+        { "name": "BENE_RECEIVED_VOLUME", "type": "FLOAT" },
+        { "name": "betweenness", "type": "FLOAT" },
+        { "name": "wcc_id", "type": "INT" },
+        { "name": "pagerank_score", "type": "FLOAT" },
+        { "name": "degreecent_score", "type": "INT" },
+        { "name": "btwcen_score", "type": "FLOAT" }
+      ]
+    },
+    {
+      "vertex_name": "phone",
+      "primary_id": "phone_id",
+      "attributes": [
+        { "name": "total", "type": "INT" },
+        { "name": "mule_ratio", "type": "INT" },
+        { "name": "mule", "type": "INT" },
+        { "name": "overall_bad_ratio", "type": "INT" },
+        { "name": "overall_bad_volume", "type": "INT" }
+      ]
+    },
+    {
+      "vertex_name": "email",
+      "primary_id": "email_id",
+      "attributes": [
+        { "name": "total", "type": "INT" },
+        { "name": "mule_ratio", "type": "INT" },
+        { "name": "mule", "type": "INT" },
+        { "name": "overall_bad_ratio", "type": "INT" },
+        { "name": "overall_bad_volume", "type": "INT" }
+      ]
+    }
+  ]
+}
