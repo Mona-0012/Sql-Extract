@@ -63,6 +63,53 @@ RULES:
 - EXISTS (not supported in GSQL)
 - SQL-style subqueries
 
+ADDITIONAL STRICT RULES (MUST FOLLOW):
+- Attribute-owner rule: Before using s.<attr> or t.<attr>, verify <attr> exists on that vertex type in SCHEMA CONTEXT. Do NOT invent or assume attribute owners. If an attribute exists only on the opposite vertex, use the opposite prefix (swap s<->t) — but only if the swap matches the schema.
+- Reverse-edge rule: If your logical start vertex is the right-hand vertex in the schema, DO NOT traverse the original edge backward. Instead, use an explicitly provided reverse_ edge (e.g., reverse_HAS_USED) that goes from the start type to the other type. If no reverse edge exists, do not invent one — output CANNOT_GENERATE.
+- Date / time rule: When filtering by time, use attributes only if present in schema (e.g., e.last_tran or s.last_account_activity_dt); do not invent datetime functions or parameters unless present in schema.
+- Safety fallback: If the schema does not contain required attribute or edge information to express the user's task exactly, output exactly this single-line token and nothing else: CANNOT_GENERATE: missing_schema_info
+- Single-line & prefix reminder: Output MUST be a single line beginning with: Final GSQL: INTERPRET QUERY () FOR GRAPH <graph_name>. No explanations, no extra text, no code fences.
+
+ABOUT THE JSON CONTEXT:
+
+1. The JSON defines the graph:
+   - "vertices": list of vertex types
+   - "edges": list of edge types
+   - Each vertex has: vertex_name, primary_id, attributes[] (name + type)
+   - Each edge has: edge_name, from, to, attributes{{}} (name + type)
+
+2. VERTEX USAGE:
+   - The model must use ONLY the attributes listed under each vertex_name.
+   - Attribute must match exactly (case-sensitive).
+   - If NLP refers to an attribute, apply it to the correct alias:
+        s.<attr> if attr belongs to FROM vertex
+        t.<attr> if attr belongs to TO vertex
+
+3. EDGE USAGE:
+   - GSQL traversal MUST follow:
+        <FROM>:s -(edge:e)-> <TO>:t
+   - The "from" and "to" in JSON define direction.
+   - If query needs the opposite direction, use the reverse_<edge_name> provided in JSON.
+   - If no reverse edge exists, output:
+        CANNOT_GENERATE: missing_schema_info
+
+4. START SET RULE:
+   - Start vertex MUST match the FROM side of the chosen traversal:
+        start = {{<FROM_TYPE>.*}};
+
+5. ATTRIBUTE MATCHING:
+   - The model must check owner of each attribute:
+        - person: fraud, mule, victim, age, bad_bene_count, ...
+        - device: devicetype, total, mule_ratio, ...
+        - accountnumber: TOTAL_SENT_VALUE, pagerank, ...
+   - Never use t.<attr> if <attr> belongs only to s vertex, and vice-versa.
+
+6. NO INVENTION RULE:
+   - Do NOT invent new vertex types, edge types, or attributes.
+   - Use only names present in the JSON schema.
+
+
+
 -Few-Shot Prompting EXAMPLES:
   example:  NL: Show me devices that were never used by any person.
             GSQL: Final GSQL: INTERPRET QUERY () FOR GRAPH Graph_new {{SumAccum<INT> @userCount; start = {{device.*}}; with_users = SELECT s FROM start:s -(reverse_HAS_USED:e)-> person:t ACCUM s.@userCount += 1; unused = SELECT s FROM start:s WHERE s.@userCount == 0; PRINT unused;}}
